@@ -1,5 +1,6 @@
-[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing")
-[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
+﻿#Last modified by zahi ohana 06.07.2017
+[void][System.Reflection.Assembly]::LoadWithPartialName("System.Drawing")
+[void][System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
 
 #--------------------------------------function----------------------------------------------#
 function GenerateForm([string]$title, [int]$Width, [int]$Height){
@@ -9,7 +10,7 @@ function GenerateForm([string]$title, [int]$Width, [int]$Height){
  $form.Height = $Height
  $form.AutoSize = $true
  $form.StartPosition = "CenterScreen"
- $Icon = New-Object system.drawing.icon("\\docserver1\SYSTEM_DOCS\files\PowerShell\Icons\CallsStatistics.ico")
+ $Icon = New-Object system.drawing.icon("CallsStatistics.ico")
  $form.Icon = $Icon
 return $form
 }
@@ -49,7 +50,7 @@ function GenComboBox([array]$data, [int]$x, [int]$y, [int]$width, [int]$height){
     $ComboBox.DataSource = @($data)
     $ComboBox.Location  = New-Object System.Drawing.Point($x,$y)
     $ComboBox.Size = New-Object System.Drawing.Size($width,$height)
-    $ComboBox.DropDownStyle = "DropDownList"  
+    $ComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList 
     return $ComboBox
     }
 function GeneraterichText([string]$text, [int]$x, [int]$y, [int]$width, [int]$height){
@@ -57,48 +58,118 @@ function GeneraterichText([string]$text, [int]$x, [int]$y, [int]$width, [int]$he
     $richTextBox.Text= $text
     $richTextBox.Location = New-Object System.Drawing.Point($x,$y)
     $richTextBox.Size = New-Object System.Drawing.Size($width, $height)
-    $richTextBox.font = "Arial"
+    $richTextBox.Font = New-Object System.Drawing.Font("'arial'",10,[System.Drawing.FontStyle]::Regular)
     return $richTextBox
 }
+#-------------------------------function--------------------------------------------------------#
+function Clean(){
+    $MainTopicBox.SelectedItem = "אנא בחר נושא מהרשימה"
+    $Description.Clear()
+}
+function SaveButton{
+    if($MainTopicBox.SelectedValue -ne "אנא בחר נושא מהרשימה"){
+        if($MainTopicBox.SelectedItem -eq "אחר"){
+           $CsvRow = new-object PSObject -property @{
+                                   name = $env:USERNAME
+                                   Date = (Get-Date).ToString()
+                                   Subject = "אחר"
+                                   Description = $Description.Text
+           }
+           $CsvRow|Export-Csv "Export.csv" -Encoding UTF8 -Append
+           [void][System.Windows.Forms.MessageBox]::Show("The operation successfully completed :)","Calls Statistics") 
+        }
+        elseif($SubtopicBox.SelectedValue -eq "אחר"){
+               $CsvRow = new-object PSObject -property @{
+                                   name = $env:USERNAME
+                                   Date = (Get-Date).ToString()
+                                   Subject = $MainTopicBox.SelectedItem
+                                   Description = $Description.Text
+               }
+               $CsvRow|Export-Csv "Export.csv" -Encoding UTF8 -Append
+               [void][System.Windows.Forms.MessageBox]::Show("The operation successfully completed :)","Calls Statistics") 
+            
+        }
+        else{$CsvRow = new-object PSObject -property @{
+                                   name = $env:USERNAME
+                                   Date = (Get-Date).ToString()
+                                   Subject = $MainTopicBox.SelectedItem
+                                   Description = $SubtopicBox.SelectedItem
+            }
+            $CsvRow|Export-Csv "Export.csv" -Encoding UTF8 -Append
+            [void][System.Windows.Forms.MessageBox]::Show("The operation successfully completed :)","Calls Statistics") 
+        }
+        Clean
+    }
+    else{[void][System.Windows.Forms.MessageBox]::Show("Please choose a subject from list","Calls Statistics")}
+}
 #-------------------------------Object--------------------------------------------------------#
-$MainTopic = " ","���","123"
-$Subtopic    = " ","���"
+$ListSubject=@{}
+$Filepath="Subjects.csv"
+$CsvFile = Import-Csv -Path $Filepath -Encoding Default
+foreach($Param in $CsvFile){
+     $ListSubject[$Param.name]=($Param.vaule.Split(",")).trimstart(" ")
+}
 
 $MainForm = GenerateForm -title 'Calls Statistics' -Width 270 -Height 220
  $MainForm.minimumSize = New-Object System.Drawing.Size(270,220)
  $MainForm.maximumSize = New-Object System.Drawing.Size(270,220)
  $MainForm.KeyPreview = $True
  $MainForm.Add_KeyDown({if ($_.KeyCode -eq "Escape"){$FormMain.Close()}})
-
 #-------------------------------topic-------------------------------------#
-$MainTopicBox = GenComboBox -data $MainTopic -x '140' -y '20' -width '100'
+$MainTopicBox = GenComboBox -data "" -x '140' -y '20' -width '100'
+    $MainTopicBoxData = New-Object System.Collections.ArrayList
+    $MainTopicBoxData.AddRange([array]"אנא בחר נושא מהרשימה")
+    $MainTopicBoxData.AddRange([array]($ListSubject.Keys|Sort-Object))
+    $MainTopicBoxData.AddRange([array]"אחר")
+$MainTopicBox.DataSource =  $MainTopicBoxData
+$MainTopicBox.DropDownWidth=($MainTopicBox.DataSource|%{$_.Length}|Sort-Object -Descending|select -First 1) *8
 $MainTopicBox.RightToLeft ="yes"
+$MainTopicBox.MaxDropDownItems = $MainTopicBoxData.Count
+$MainTopicBox.AutoScrollOffset.X =50
+$MainTopicBox.AutoScrollOffset.y =150
+
     $MainTopicBox.add_SelectedValueChanged{
-        if($MainTopicBox.SelectedValue -eq "���"){
-                $Description.Enabled = $True;$SubtopicBox.Enabled=$false
+        if($MainTopicBox.SelectedValue -eq "אחר"){
+                $Description.Enabled = $True
+                $SubtopicBox.Enabled=$false
         }
-        elseif($MainTopicBox.SelectedValue -ne " "){
+        elseif($MainTopicBox.SelectedValue -ne "אנא בחר נושא מהרשימה"){
                 $Description.Enabled = $false
                 $SubtopicBox.Enabled=$True
+                $Data = New-Object System.Collections.ArrayList
+                $Data.AddRange([array]($ListSubject[$MainTopicBox.SelectedValue]|Sort-Object))
+                $Data.AddRange([array]"אחר")
+                $SubtopicBox.DataSource = $Data
+                $SubtopicBox.MaxDropDownItems = $Data.Count
+                $SubtopicBox.DropDownWidth=($SubtopicBox.DataSource|%{$_.Length}|Sort-Object -Descending|select -First 1) *7
         }
         else{$Description.Enabled = $false
              $SubtopicBox.Enabled=$false
+             $Data = New-Object System.Collections.ArrayList
+             $Data.AddRange([array]" ")
+             $SubtopicBox.DataSource = $Data
         }
     }
 
 $MainTopicBoxGroup = GenGroupBox -x '130' -y '5' -width '120' -height '45' 
 $MainTopicBoxGroup.RightToLeft = "yes"
-$MainTopicBoxGroup.Text        = "������"
+$MainTopicBoxGroup.Text        = "נושאים"
+
 #-------------------------Subtopic-----------------------------------------#
 
-$SubtopicBox = GenComboBox -data $Subtopic -x '15' -y '20' -width '100'
+$SubtopicBox = GenComboBox -data "" -x '15' -y '20' -width '100'
 $SubtopicBox.Enabled = $false
 $SubtopicBox.RightToLeft ="yes"
+$MainTopicBox.IntegralHeight = $True
+    $SubtopicBox.add_SelectedValueChanged{
+     if($SubtopicBox.SelectedValue -eq "אחר"){
+        $Description.Enabled = $True
+     }
+}
 
 $SubtopicBoxGroup = GenGroupBox -x 5 -y '5' -width '120' -height '45'
-$SubtopicBoxGroup.Location.X += 20
 $SubtopicBoxGroup.RightToLeft = "yes"
-$SubtopicBoxGroup.Text        = "��-������"
+$SubtopicBoxGroup.Text        = "תת-נושאים"
 
 #-------------------------Description-----------------------------------------#
 $Description = GeneraterichText -x '10' -y '64' -width '235' -height '50'
@@ -107,7 +178,7 @@ $Description.RightToLeft="yes"
 $DescriptionGroup = GenGroupBox -x '5' -y '50' -width '245' -height '70' 
 $DescriptionGroup.RightToLeft = "yes"
 
-$SaveButton = GenerateButton -x '77' -y '125' -action{}
+$SaveButton = GenerateButton -x '77' -y '125' -action{SaveButton}
 $SaveButton.Image = [System.Convert]::FromBase64String('AAABAAEAICAAAAEAIACoEAAAFgAAACgAAAAgAAAAQAAAAAEAIAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAATABMAEQARABUAEwENABEFAQAQDgMAERYEABEYBAARGAQAERgEABEYBAARGAQAERgEABEYBAARGAQAERgEAB
 EYBAARGAQAERgEABEYBAARGAQAERgEABEYBAARGAQAERgEABEYBQARGAUAERgFABEWDwASDxMAEgYSABIBEgASABEAEQAWABIBAwAQBSAJERpFFxRGQBUUWD4UFFs+FBRbPxQUW0AUEltBExBbQRMQW0ATEFtAEw9bPxIP
 Wz8RDls+EQ5bPhENWz4RDVs+EA1bPhANWz4QDVs/ExFbPxQUWz4UFFs+FBRbPxQUWzwTFFYXBRI3DgASGBIAEgYSABIBGQATAAAADwQaBg0Zij0dhq5YLOexXC/tsFwv7bBcL+2uWSztm1c/7ZRmX+2WaGDtmWtj7Z5waO
@@ -181,7 +252,8 @@ Atamcdj8ihWNG1m05unRQhx8S4eD+SZcbU6PCjxIPEE8exeWEqsIxV9l4T8f0K/nl9VVvyq/2Jyr
 w7X3MmIdIMQ/ieKbe8W/iMeIp4hlRBIh3tzf8uf0dokH3APEw8QigsKZBb8AruUp9dfuU5MAAAAA
 SUVORK5CYII=')
 $ExitButton.Size = '40, 40'
-$version = GenerateLabel -text 'V 1.0' -x '2' -y '167'
+
+$version = GenerateLabel -text 'V 1.3' -x '2' -y '167'
 $version.Font = New-Object System.Drawing.Font("Times New Roman",7,[System.Drawing.FontStyle]::Regular)
 $CurrentUser = GenerateLabel -text $env:USERNAME -x '2' -y '157'
 $CurrentUser.Font = New-Object System.Drawing.Font("Times New Roman",7,[System.Drawing.FontStyle]::Regular)
